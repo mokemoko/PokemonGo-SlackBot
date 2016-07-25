@@ -34,6 +34,8 @@ from requests.models import InvalidURL
 from transform import *
 from math import radians, cos, sin, asin, sqrt
 
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -515,7 +517,24 @@ def send_to_slack(text, username, icon_emoji, webhook):
         str_values[k] = unicode(v).encode('utf-8')
     data = urllib.urlencode(str_values)
 
-    h = httplib.HTTPSConnection('hooks.slack.com')
+    h = httplib.HTTPSConnection(webhook_host)
+    headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
+
+    h.request('POST', webhook, data, headers)
+    r = h.getresponse()
+    ack = r.read()
+
+def send_to_mattermost(text, username, pokeid, webhook):
+    values = {'payload': '{"username": "' + username + '", '
+                                        '"icon_url": "https://raw.githubusercontent.com/mokemoko/PokemonGo-SlackBot/master/static/larger-icons/' + pokeid + '.png", '
+                                        '"text": "' + text + '"}'
+                             }
+    str_values = {}
+    for k, v in values.items():
+        str_values[k] = unicode(v).encode('utf-8')
+    data = urllib.urlencode(str_values)
+
+    h = httplib.HTTPSConnection(webhook_host)
     headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
 
     h.request('POST', webhook, data, headers)
@@ -563,6 +582,11 @@ def get_args():
         help='Display Gym',
         action='store_true',
         default=False)
+    parser.add_argument(
+        '-wh',
+        '--webhook-host',
+        help='Set webook host',
+        default='hooks.slack.com')
     parser.add_argument(
         '-H',
         '--host',
@@ -693,6 +717,10 @@ def main():
         pokemon_icons_prefix = args.pokemon_icons
     else:
         pokemon_icons_prefix = False
+
+    global webhook_host
+    webhook_host = str(args.webhook_host)
+
 
     ignore = []
     only = []
@@ -844,7 +872,8 @@ transform_from_wgs_to_gcj(Location(Fort.Latitude, Fort.Longitude))
 
 
 
-            send_to_slack(alert_text, pokename, user_icon, slack_webhook_urlpath)
+            #send_to_slack(alert_text, pokename, user_icon, slack_webhook_urlpath)
+            send_to_mattermost(alert_text, pokename, pokeid, slack_webhook_urlpath)
 
             spotted_pokemon[poke.SpawnPointId] = {'disappear_datetime': disappear_datetime, 'pokename': pokename}
 
